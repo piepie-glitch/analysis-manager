@@ -483,6 +483,14 @@ export default function App() {
   const [darkMode, setDarkMode] = useState(loadDarkMode);
   const T = darkMode ? THEMES.dark : THEMES.light;
 
+  // 모바일 감지
+  const [isMobile, setIsMobile] = useState(()=>window.innerWidth < 768);
+  useEffect(()=>{
+    const handler = ()=>setIsMobile(window.innerWidth < 768);
+    window.addEventListener("resize", handler);
+    return ()=>window.removeEventListener("resize", handler);
+  },[]);
+
   // 인증
   const [user, setUser] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
@@ -780,7 +788,48 @@ export default function App() {
   // ─────────────────────────────────────────────────────────
   // HEADER
   // ─────────────────────────────────────────────────────────
-  const Header=()=>(
+  const Header=()=>{
+    if (isMobile) {
+      // 모바일 헤더: 로고 + 현재 위치 + 우측 액션
+      const pageTitle = page==="form" ? (editId?"프로젝트 편집":"새 프로젝트") :
+        page==="detail"&&curProject ? `${curProject.groupName}` : "분석 프로세스 매니저";
+      return (
+        <div style={{height:52,background:T.headerBg,borderBottom:`1px solid ${T.border}`,
+          display:"flex",alignItems:"center",padding:"0 12px",gap:8,flexShrink:0,zIndex:20}}>
+          {(page==="detail"||page==="form")&&(
+            <button onClick={()=>{
+              if(page==="form") setPage(editId?"detail":"list");
+              else {setPage("list");setSelId(null);}
+            }} style={{background:"none",border:"none",color:T.textSub,fontSize:20,cursor:"pointer",padding:"4px 6px",lineHeight:1}}>
+              ←
+            </button>
+          )}
+          {page==="list"&&(
+            <div style={{width:26,height:26,borderRadius:6,background:"linear-gradient(135deg,#7c3aed,#0284c7)",
+              display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,color:"#fff",flexShrink:0}}>◈</div>
+          )}
+          <span style={{fontSize:14,fontWeight:700,color:T.text,flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+            {pageTitle}
+          </span>
+          {page==="detail"&&curProject&&(
+            <button onClick={()=>openEdit(curProject)}
+              style={{background:"none",border:"none",color:"#7c3aed",fontSize:18,cursor:"pointer",padding:"4px 6px"}}>✏</button>
+          )}
+          <button onClick={()=>setDarkMode(v=>!v)}
+            style={{background:"none",border:"none",color:T.textSub,fontSize:18,cursor:"pointer",padding:"4px 6px"}}>
+            {darkMode?"☀️":"🌙"}
+          </button>
+          <div style={{width:28,height:28,borderRadius:"50%",background:"linear-gradient(135deg,#7c3aed,#0284c7)",
+            display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,color:"#fff",fontWeight:700,
+            cursor:"pointer",flexShrink:0}}
+            onClick={()=>supabase.auth.signOut()}>
+            {user.email[0].toUpperCase()}
+          </div>
+        </div>
+      );
+    }
+
+    return (
     <div style={{height:52,background:T.headerBg,borderBottom:`1px solid ${T.border}`,
       display:"flex",alignItems:"center",padding:"0 16px",gap:10,flexShrink:0,zIndex:20,
       boxShadow:`0 1px 0 ${T.border}`}}>
@@ -892,7 +941,8 @@ export default function App() {
         </button>
       </div>
     </div>
-  );
+    );
+  };
 
   // ─────────────────────────────────────────────────────────
   // HISTORY PAGE
@@ -947,15 +997,16 @@ export default function App() {
   // LIST PAGE
   // ─────────────────────────────────────────────────────────
   const ListPage=()=>(
-    <div style={{flex:1,overflow:"auto",background:T.bg,padding:20}}>
-      <div style={{display:"flex",gap:10,marginBottom:16,alignItems:"center",flexWrap:"wrap"}}>
+    <div style={{flex:1,overflow:"auto",background:T.bg,padding:isMobile?12:20,
+      paddingBottom:isMobile?80:20}}>
+      <div style={{display:"flex",gap:8,marginBottom:12,alignItems:"center",flexWrap:"wrap"}}>
         <input value={searchQ} onChange={e=>setSearchQ(e.target.value)}
           placeholder="🔍  그룹명 / Estate 검색..."
-          style={{...inp,width:230,padding:"7px 12px"}}/>
-        <select value={filterType} onChange={e=>setFilterType(e.target.value)} style={{...inp,width:130}}>
+          style={{...inp,width:isMobile?"100%":230,padding:"9px 12px",fontSize:isMobile?14:12}}/>
+        {!isMobile&&<select value={filterType} onChange={e=>setFilterType(e.target.value)} style={{...inp,width:130}}>
           <option value="all">전체 서비스</option>
           {SERVICE_TYPES.map(t=><option key={t}>{t}</option>)}
-        </select>
+        </select>}
         <span style={{fontSize:11,color:T.textMuted,marginLeft:"auto"}}>{filtered.length}개 프로젝트</span>
       </div>
 
@@ -976,9 +1027,10 @@ export default function App() {
             const sColor=pct===100?"#16a34a":prog?"#0284c7":"#64748b";
             return (
               <div key={p.id}
-                onClick={()=>{setDetailId(p.id);setPage("detail");setSelId(null);setDetailTab("flow");}}
+                onClick={()=>{setDetailId(p.id);setPage("detail");setSelId(null);setDetailTab(isMobile?"schedule":"flow");}}
                 style={{background:T.surface,border:`1px solid ${T.border}`,borderRadius:12,
-                  padding:"14px 18px",cursor:"pointer",display:"flex",alignItems:"center",gap:14,
+                  padding:isMobile?"12px 14px":"14px 18px",cursor:"pointer",display:"flex",
+                  alignItems:"center",gap:isMobile?10:14,
                   boxShadow:`0 1px 3px rgba(0,0,0,${T.isDark?.3:.05})`,transition:"all .15s"}}
                 onMouseEnter={e=>{e.currentTarget.style.borderColor=T.border2;e.currentTarget.style.boxShadow=`0 4px 12px rgba(0,0,0,${T.isDark?.3:.1})`;}}
                 onMouseLeave={e=>{e.currentTarget.style.borderColor=T.border;e.currentTarget.style.boxShadow=`0 1px 3px rgba(0,0,0,${T.isDark?.3:.05})`;}} >
@@ -2027,13 +2079,14 @@ export default function App() {
           {page==="list"&&globalTab==="schedule" &&<GlobalSchedule/>}
           {page==="list"&&globalTab==="gantt"    &&<GlobalGantt/>}
           {page==="list"&&globalTab==="history"  &&<HistoryPage/>}
-          {page==="form"                          &&<FormPage/>}
+          {page==="form"                          &&FormPage()}
           {page==="detail"&&detailTab==="flow"     &&<FlowEditor/>}
           {page==="detail"&&detailTab==="schedule" &&<ProjectSchedule/>}
           {page==="detail"&&detailTab==="gantt"    &&<ProjectGantt/>}
         </div>
 
-        {page==="detail"&&detailTab==="flow"&&(
+        {/* PC 플로우 범례 */}
+        {!isMobile&&page==="detail"&&detailTab==="flow"&&(
           <div style={{height:32,background:T.surface,borderTop:`1px solid ${T.border}`,
             display:"flex",alignItems:"center",padding:"0 14px",gap:14,flexShrink:0}}>
             <span style={{fontSize:9,color:T.textMuted}}>범례:</span>
@@ -2051,6 +2104,67 @@ export default function App() {
             <div style={{flex:1}}/>
             <span style={{fontSize:9,color:T.textMuted,opacity:.5}}>드래그: 노드 이동 · 스크롤: 캔버스 이동 · +/- : 줌</span>
           </div>
+        )}
+
+        {/* 모바일 하단 탭바 */}
+        {isMobile&&page==="list"&&(
+          <div style={{height:60,background:T.surface,borderTop:`1px solid ${T.border}`,
+            display:"flex",alignItems:"stretch",flexShrink:0,zIndex:30,
+            paddingBottom:"env(safe-area-inset-bottom)"}}>
+            {[
+              {k:"list",   icon:"📁", label:"목록"},
+              {k:"schedule",icon:"📋", label:"일정"},
+              {k:"gantt",  icon:"📅", label:"간트"},
+              {k:"history",icon:"🕑", label:"히스토리"},
+            ].map(({k,icon,label})=>(
+              <button key={k} onClick={()=>setGlobalTab(k)}
+                style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",
+                  justifyContent:"center",gap:2,border:"none",cursor:"pointer",
+                  background:"transparent",
+                  color:globalTab===k?"#7c3aed":T.textMuted,
+                  borderTop:globalTab===k?"2px solid #7c3aed":"2px solid transparent",
+                  fontSize:10,fontWeight:globalTab===k?700:400,transition:"all .15s"}}>
+                <span style={{fontSize:18,lineHeight:1}}>{icon}</span>
+                {label}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* 모바일 상세 하단 탭바 */}
+        {isMobile&&page==="detail"&&(
+          <div style={{height:60,background:T.surface,borderTop:`1px solid ${T.border}`,
+            display:"flex",alignItems:"stretch",flexShrink:0,zIndex:30,
+            paddingBottom:"env(safe-area-inset-bottom)"}}>
+            {[
+              {k:"flow",    icon:"🔀", label:"플로우"},
+              {k:"schedule",icon:"📋", label:"일정"},
+              {k:"gantt",   icon:"📅", label:"간트"},
+            ].map(({k,icon,label})=>(
+              <button key={k} onClick={()=>setDetailTab(k)}
+                style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",
+                  justifyContent:"center",gap:2,border:"none",cursor:"pointer",
+                  background:"transparent",
+                  color:detailTab===k?"#7c3aed":T.textMuted,
+                  borderTop:detailTab===k?"2px solid #7c3aed":"2px solid transparent",
+                  fontSize:10,fontWeight:detailTab===k?700:400,transition:"all .15s"}}>
+                <span style={{fontSize:18,lineHeight:1}}>{icon}</span>
+                {label}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* 모바일 목록 탭 새 프로젝트 버튼 (FAB) */}
+        {isMobile&&page==="list"&&globalTab==="list"&&(
+          <button onClick={openCreate}
+            style={{position:"fixed",right:20,bottom:76,width:52,height:52,borderRadius:"50%",
+              background:"linear-gradient(135deg,#7c3aed,#0284c7)",border:"none",
+              color:"#fff",fontSize:24,cursor:"pointer",zIndex:40,
+              boxShadow:"0 4px 16px rgba(124,58,237,.5)",display:"flex",
+              alignItems:"center",justifyContent:"center",lineHeight:1}}>
+            +
+          </button>
         )}
       </div>
     </ThemeCtx.Provider>
