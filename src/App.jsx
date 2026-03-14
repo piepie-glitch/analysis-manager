@@ -377,11 +377,126 @@ function ScrollStyles({T}) {
 }
 
 // ─────────────────────────────────────────────────────────
+// 활동 로그 기록
+// ─────────────────────────────────────────────────────────
+async function logActivity(userEmail, action, target, details) {
+  try {
+    await supabase.from("activity_log").insert({ user_email: userEmail, action, target, details });
+  } catch(e) { console.warn("활동 로그 기록 실패:", e); }
+}
+
+// ─────────────────────────────────────────────────────────
+// 로그인 화면
+// ─────────────────────────────────────────────────────────
+function LoginPage() {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [mode, setMode] = useState("login"); // "login" | "signup"
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [signupDone, setSignupDone] = useState(false);
+
+  const handle = async () => {
+    setLoading(true); setError("");
+    if (mode === "login") {
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) setError("이메일 또는 비밀번호가 틀렸습니다.");
+    } else {
+      if (!email.toLowerCase().endsWith("@dabeeo.com")) {
+        setError("@dabeeo.com 이메일만 가입할 수 있습니다.");
+        setLoading(false); return;
+      }
+      const { error } = await supabase.auth.signUp({ email, password });
+      if (error) setError(error.message);
+      else setSignupDone(true);
+    }
+    setLoading(false);
+  };
+
+  const inputStyle = {
+    width:"100%", padding:"10px 14px", borderRadius:8, border:"1px solid #334155",
+    background:"#1e293b", color:"#e2e8f0", fontSize:14, outline:"none",
+  };
+
+  if (signupDone) return (
+    <div style={{width:"100vw",height:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:"#0f172a"}}>
+      <div style={{background:"#1e293b",borderRadius:16,padding:40,width:360,textAlign:"center",color:"#e2e8f0"}}>
+        <div style={{fontSize:32,marginBottom:16}}>📧</div>
+        <div style={{fontSize:16,fontWeight:700,marginBottom:8}}>가입 확인 이메일 발송됨</div>
+        <div style={{fontSize:13,color:"#94a3b8"}}>이메일을 확인하고 링크를 클릭한 뒤 로그인해주세요.</div>
+        <button onClick={()=>{setMode("login");setSignupDone(false);}}
+          style={{marginTop:20,padding:"10px 24px",borderRadius:8,border:"none",background:"#7c3aed",color:"#fff",fontWeight:600,cursor:"pointer"}}>
+          로그인으로
+        </button>
+      </div>
+    </div>
+  );
+
+  return (
+    <div style={{width:"100vw",height:"100vh",display:"flex",alignItems:"center",justifyContent:"center",
+      background:"#0f172a",fontFamily:"'Noto Sans KR',sans-serif"}}>
+      <div style={{background:"#1e293b",borderRadius:16,padding:40,width:360,
+        boxShadow:"0 20px 60px rgba(0,0,0,.5)",border:"1px solid #334155"}}>
+        <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:28}}>
+          <div style={{width:32,height:32,borderRadius:8,background:"linear-gradient(135deg,#7c3aed,#0284c7)",
+            display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,color:"#fff"}}>◈</div>
+          <span style={{fontSize:15,fontWeight:700,color:"#e2e8f0"}}>분석 프로세스 매니저</span>
+        </div>
+        <div style={{fontSize:20,fontWeight:700,color:"#e2e8f0",marginBottom:24}}>
+          {mode==="login"?"로그인":"회원가입"}
+        </div>
+        <div style={{display:"flex",flexDirection:"column",gap:12}}>
+          <input style={inputStyle} type="email" placeholder="이메일" value={email}
+            onChange={e=>setEmail(e.target.value)} onKeyDown={e=>e.key==="Enter"&&handle()}/>
+          <input style={inputStyle} type="password" placeholder="비밀번호 (6자 이상)" value={password}
+            onChange={e=>setPassword(e.target.value)} onKeyDown={e=>e.key==="Enter"&&handle()}/>
+          {error && <div style={{fontSize:12,color:"#f87171"}}>{error}</div>}
+          <button onClick={handle} disabled={loading}
+            style={{padding:"11px",borderRadius:8,border:"none",background:"#7c3aed",
+              color:"#fff",fontWeight:700,fontSize:14,cursor:"pointer",marginTop:4,
+              opacity:loading?.6:1}}>
+            {loading?"처리 중...":(mode==="login"?"로그인":"가입하기")}
+          </button>
+        </div>
+        <div style={{marginTop:20,textAlign:"center",fontSize:12,color:"#64748b"}}>
+          {mode==="login"?(
+            <>계정이 없으신가요?{" "}
+              <span style={{color:"#7c3aed",cursor:"pointer",fontWeight:600}}
+                onClick={()=>{setMode("signup");setError("");}}>회원가입</span>
+            </>
+          ):(
+            <>이미 계정이 있으신가요?{" "}
+              <span style={{color:"#7c3aed",cursor:"pointer",fontWeight:600}}
+                onClick={()=>{setMode("login");setError("");}}>로그인</span>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────
 // MAIN APP
 // ─────────────────────────────────────────────────────────
 export default function App() {
   const [darkMode, setDarkMode] = useState(loadDarkMode);
   const T = darkMode ? THEMES.dark : THEMES.light;
+
+  // 인증
+  const [user, setUser] = useState(null);
+  const [authLoading, setAuthLoading] = useState(true);
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setUser(session?.user ?? null);
+      setAuthLoading(false);
+    });
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, session) => {
+      setUser(session?.user ?? null);
+    });
+    return () => subscription.unsubscribe();
+  }, []);
 
   // Supabase에서 초기 데이터 로드
   const [projects, setProjects] = useState([]);
@@ -486,13 +601,18 @@ export default function App() {
     setProjects(prev=>prev.map(p=>{
       if (p.id!==detailId) return p;
       const src = p.nodes.find(x=>x.id===nodeId);
+      // 상태 변경 로그
+      if (patch.status !== undefined && src && patch.status !== src.status) {
+        const STATUS_KR = { todo:"미시작", inprogress:"진행중", done:"완료", hold:"보류" };
+        logActivity(user.email, "상태 변경",
+          `${p.groupName} - ${src.label||src.id}`,
+          `${STATUS_KR[src.status]||src.status} → ${STATUS_KR[patch.status]||patch.status}`);
+      }
       const nodes=p.nodes.map(n=>{
         if (n.id===nodeId) return {...n,...patch};
         if (patch.status!==undefined && src?.seq && n.seq) {
-          // 기존: 하위 프로세스 일괄 상태 적용
           if (n.seq.startsWith(src.seq+"."))
             return {...n,status:patch.status};
-          // 신규: done일 때 같은 그룹의 이전 노드들도 완료 + 시작일 일괄 처리
           if (patch.status==="done") {
             const parts = src.seq.split(".");
             const parentPrefix = parts.slice(0,-1).join(".");
@@ -504,7 +624,7 @@ export default function App() {
       });
       return {...p,nodes};
     }));
-  },[detailId]);
+  },[detailId, user]);
 
   const startDrag = useCallback((e,id)=>{
     e.stopPropagation(); setSelId(id);
@@ -611,10 +731,19 @@ export default function App() {
   };
   const submitForm=()=>{
     if(!validate()) return;
-    if(editId){setProjects(prev=>prev.map(p=>p.id===editId?{...p,...form}:p));setPage("detail");setDetailId(editId);}
-    else{setProjects(prev=>[...prev,{...form,id:uid(),nodes:buildNodes()}]);setPage("list");setGlobalTab("list");}
+    if(editId){
+      setProjects(prev=>prev.map(p=>p.id===editId?{...p,...form}:p));
+      logActivity(user.email, "프로젝트 수정", `${form.groupName} - ${form.estateName}`, null);
+      setPage("detail");setDetailId(editId);
+    } else {
+      setProjects(prev=>[...prev,{...form,id:uid(),nodes:buildNodes()}]);
+      logActivity(user.email, "프로젝트 생성", `${form.groupName} - ${form.estateName}`, null);
+      setPage("list");setGlobalTab("list");
+    }
   };
   const delProject=id=>{
+    const p=projects.find(x=>x.id===id);
+    if(p) logActivity(user.email, "프로젝트 삭제", `${p.groupName} - ${p.estateName}`, null);
     setProjects(prev=>prev.filter(p=>p.id!==id));
     setConfirmDelete(null);
     if(detailId===id){setPage("list");setDetailId(null);}
@@ -672,7 +801,7 @@ export default function App() {
       {page==="list"&&(
         <div style={{display:"flex",gap:1,background:T.surface2,borderRadius:8,
           padding:"3px",border:`1px solid ${T.border}`}}>
-          {[{k:"list",label:"📁 목록"},{k:"schedule",label:"📋 전체 일정"},{k:"gantt",label:"📅 전체 간트"}].map(({k,label})=>(
+          {[{k:"list",label:"📁 목록"},{k:"schedule",label:"📋 전체 일정"},{k:"gantt",label:"📅 전체 간트"},{k:"history",label:"🕑 히스토리"}].map(({k,label})=>(
             <button key={k} onClick={()=>setGlobalTab(k)} style={{
               padding:"5px 12px",borderRadius:6,border:"none",cursor:"pointer",fontSize:11,
               background:globalTab===k?T.surface:"transparent",
@@ -747,8 +876,72 @@ export default function App() {
         style={{...btnSm(T.surface2,T.textSub),padding:"5px 10px",fontSize:16,lineHeight:1}}>
         {darkMode?"☀️":"🌙"}
       </button>
+
+      <div style={{display:"flex",alignItems:"center",gap:6,padding:"5px 10px",
+        background:T.surface2,borderRadius:8,border:`1px solid ${T.border}`}}>
+        <div style={{width:20,height:20,borderRadius:"50%",background:"linear-gradient(135deg,#7c3aed,#0284c7)",
+          display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,color:"#fff",fontWeight:700}}>
+          {user.email[0].toUpperCase()}
+        </div>
+        <span style={{fontSize:11,color:T.textSub,maxWidth:120,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+          {user.email}
+        </span>
+        <button onClick={()=>supabase.auth.signOut()}
+          style={{...btnSm(T.surface,T.textMuted),padding:"2px 8px",fontSize:10}}>
+          로그아웃
+        </button>
+      </div>
     </div>
   );
+
+  // ─────────────────────────────────────────────────────────
+  // HISTORY PAGE
+  // ─────────────────────────────────────────────────────────
+  const HistoryPage=()=>{
+    const [logs, setLogs] = useState([]);
+    const [loading, setLoading] = useState(true);
+    useEffect(()=>{
+      supabase.from("activity_log").select("*").order("created_at",{ascending:false}).limit(100)
+        .then(({data})=>{ setLogs(data||[]); setLoading(false); });
+    },[]);
+    const ACTION_COLOR = {"프로젝트 생성":"#22c55e","프로젝트 수정":"#3b82f6","프로젝트 삭제":"#ef4444","상태 변경":"#a78bfa"};
+    return (
+      <div style={{flex:1,overflow:"auto",padding:24}}>
+        <div style={{maxWidth:700,margin:"0 auto"}}>
+          <div style={{fontSize:16,fontWeight:700,color:T.text,marginBottom:20}}>🕑 수정 히스토리</div>
+          {loading ? (
+            <div style={{color:T.textMuted,textAlign:"center",padding:40}}>불러오는 중...</div>
+          ) : logs.length===0 ? (
+            <div style={{color:T.textMuted,textAlign:"center",padding:40}}>아직 기록이 없습니다.</div>
+          ) : logs.map(log=>(
+            <div key={log.id} style={{display:"flex",gap:14,alignItems:"flex-start",
+              padding:"12px 0",borderBottom:`1px solid ${T.border}`}}>
+              <div style={{width:32,height:32,borderRadius:"50%",background:"linear-gradient(135deg,#7c3aed,#0284c7)",
+                display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,color:"#fff",
+                fontWeight:700,flexShrink:0}}>
+                {log.user_email[0].toUpperCase()}
+              </div>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+                  <span style={{fontSize:12,fontWeight:600,color:T.text}}>{log.user_email}</span>
+                  <span style={{fontSize:11,padding:"2px 8px",borderRadius:4,fontWeight:600,
+                    background:(ACTION_COLOR[log.action]||"#64748b")+"22",
+                    color:ACTION_COLOR[log.action]||"#64748b"}}>
+                    {log.action}
+                  </span>
+                  <span style={{fontSize:11,color:T.textMuted,marginLeft:"auto",whiteSpace:"nowrap"}}>
+                    {new Date(log.created_at).toLocaleString("ko-KR",{month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit"})}
+                  </span>
+                </div>
+                {log.target&&<div style={{fontSize:12,color:T.textSub,marginTop:3}}>{log.target}</div>}
+                {log.details&&<div style={{fontSize:11,color:T.textMuted,marginTop:2}}>{log.details}</div>}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  };
 
   // ─────────────────────────────────────────────────────────
   // LIST PAGE
@@ -1797,6 +1990,19 @@ export default function App() {
   // ─────────────────────────────────────────────────────────
   // RENDER
   // ─────────────────────────────────────────────────────────
+  if (authLoading) {
+    return (
+      <div style={{width:"100vw",height:"100vh",display:"flex",alignItems:"center",
+        justifyContent:"center",background:"#0F172A",color:"#94A3B8",
+        fontFamily:"'Noto Sans KR',sans-serif",flexDirection:"column",gap:16}}>
+        <div style={{fontSize:32}}>⏳</div>
+        <div style={{fontSize:16,fontWeight:600}}>로딩 중...</div>
+      </div>
+    );
+  }
+
+  if (!user) return <LoginPage />;
+
   if (dbLoading) {
     return (
       <div style={{width:"100vw",height:"100vh",display:"flex",alignItems:"center",
@@ -1820,6 +2026,7 @@ export default function App() {
           {page==="list"&&globalTab==="list"     &&<ListPage/>}
           {page==="list"&&globalTab==="schedule" &&<GlobalSchedule/>}
           {page==="list"&&globalTab==="gantt"    &&<GlobalGantt/>}
+          {page==="list"&&globalTab==="history"  &&<HistoryPage/>}
           {page==="form"                          &&<FormPage/>}
           {page==="detail"&&detailTab==="flow"     &&<FlowEditor/>}
           {page==="detail"&&detailTab==="schedule" &&<ProjectSchedule/>}
